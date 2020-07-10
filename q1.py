@@ -3,6 +3,7 @@ from control import matlab
 import control
 import random
 import math
+import sys
 
 # PID function to minimize
 def Q1_perfFCN(Kp,Ti,Td):
@@ -46,7 +47,7 @@ def bitMapping(min_val,max_val,n,val):
     precision = (max_val-min_val)/((2**n)-1)
     number = math.ceil((val-min_val)/precision)
     bit = bin(number).replace('0b','')
-    return bit.zfill(4)
+    return bit.zfill(n)
 
 # Converts binary into base-10 number representation
 def numMapping(bit, bit_size):
@@ -65,13 +66,13 @@ def numMapping(bit, bit_size):
     return Kp,Ti,Td
 
 # Crossover operation
-def crossover(mom,dad,p_c):
+def crossover(mom,dad,p_c,bit_size):
     child1 = mom
     child2 = dad
     prob = random.uniform(0.00,1.00)
 
     if prob <= p_c:
-        point = random.randint(0,11)
+        point = random.randint(0,bit_size*3-1)
         child1 = dad[:point] + mom[point:]
         child2 = mom[:point] + dad[point:]
     return child1,child2
@@ -93,28 +94,34 @@ def mutation(child,p_m):
 # Genetic Algorithm
 def main():
 
+    # Tunable Parameters
+    population  = int(sys.argv[1]) #50
+    generations = int(sys.argv[2]) #150
+    p_crossover = float(sys.argv[3]) #0.6
+    p_mutation  = float(sys.argv[4]) #0.25
+
+    bit_length = 20
     offspring = []
-    for i in range(50):
+    for i in range(population):
         Kp = round(random.uniform(2.00,18.00),2)
         Ti = round(random.uniform(1.05, 9.42),2)
         Td = round(random.uniform(0.26, 2.37),2)
         offspring.append([Kp,Ti,Td])
 
-    iterMax = 150
-    iterCount = 0
-    while iterCount < iterMax:
-
-        colony = []
-        totalFitness = 0
+    print("Population: ",population,", Generation: ",generations,", Crossover %: ",p_crossover,", Mutation %: ",p_mutation)
+    iteration = 0
+    while iteration < generations:
         max1 = -1
         max2 = -1
         max1_ind = 0
         max2_ind = 0
 
         # Evaluating Colony's fitness
+        colony = []
+        totalFitness = 0
         for e,i in enumerate(offspring):
             ISE,Tr,Ts,Mp = Q1_perfFCN(i[0],i[1],i[2])
-            genotype = bitMapping(2.00,18.00,4,Kp) + bitMapping(1.05,9.42,4,Ti) + bitMapping(0.26,2.37,4,Td)
+            genotype = bitMapping(2.00,18.00,bit_length,i[0]) + bitMapping(1.05,9.42,bit_length,i[1]) + bitMapping(0.26,2.37,bit_length,i[2])
             fitness = evalute(ISE)
             totalFitness += fitness
             colony.append([genotype,fitness])
@@ -144,7 +151,7 @@ def main():
         pool = []
         totalFitness = totalFitness - elite1[1] - elite2[1]
         use = totalFitness
-        for _ in range(48):
+        for _ in range(population-2):
             threshold = random.uniform(0.00,use)
             cumulative = 0
             for i in colony:
@@ -158,15 +165,18 @@ def main():
         # Offsprings - Crossover + Mutation
         offspring = []
         while pool:
-            child1,child2 = crossover(pool.pop(),pool.pop(),0.6)
-            child1 = mutation(child1,0.25)
-            child2 = mutation(child2,0.25)
-            offspring.append(numMapping(child1,4))
-            offspring.append(numMapping(child2,4))
+            child1,child2 = crossover(pool.pop(),pool.pop(),p_crossover,bit_length)
+            child1 = mutation(child1,p_mutation)
+            child2 = mutation(child2,p_mutation)
+            Kp_1, Ti_1, Td_1 = numMapping(child1,bit_length)
+            Kp_2, Ti_2, Td_2 = numMapping(child2,bit_length)
+            offspring.append([Kp_1,Ti_1,Td_1])
+            offspring.append([Kp_2,Ti_2,Td_2])
         offspring.append(bc1)
         offspring.append(bc2)
 
-        iterCount += 1
+        print("Iteration: ",iteration," --> ",elite1[0]," scoring ",elite1[1])
+        iteration += 1
 
 if __name__ == '__main__':
     main()
